@@ -1,32 +1,37 @@
 package ru.alishev.springcourse.FirstSecurityApp.controllers;
 
+import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.*;
+import ru.alishev.springcourse.FirstSecurityApp.dto.PersonDTO;
 import ru.alishev.springcourse.FirstSecurityApp.models.Person;
+import ru.alishev.springcourse.FirstSecurityApp.security.JWTUtil;
 import ru.alishev.springcourse.FirstSecurityApp.services.RegistrationService;
 import ru.alishev.springcourse.FirstSecurityApp.util.PersonValidator;
 
 import javax.validation.Valid;
+import java.util.Map;
 
 /**
  * @author Neil Alishev
  */
-@Controller
+@RestController
 @RequestMapping("/auth")
 public class AuthController {
 
     private final RegistrationService registrationService;
     private final PersonValidator personValidator;
+    private final JWTUtil jwtUtil;
+    private final ModelMapper modelMapper;
 
     @Autowired
-    public AuthController(RegistrationService registrationService, PersonValidator personValidator) {
+    public AuthController(RegistrationService registrationService, PersonValidator personValidator,JWTUtil jwtUtil, ModelMapper modelMapper ) {
         this.registrationService = registrationService;
         this.personValidator = personValidator;
+        this.jwtUtil = jwtUtil;
+        this.modelMapper =modelMapper;
     }
 
     @GetMapping("/login")
@@ -40,15 +45,22 @@ public class AuthController {
     }
 
     @PostMapping("/registration")
-    public String performRegistration(@ModelAttribute("person") @Valid Person person,
+    public Map<String,String> performRegistration(@RequestBody PersonDTO personDTO,
                                       BindingResult bindingResult) {
+        Person person =convertToPerson(personDTO);
         personValidator.validate(person, bindingResult);
 
-        if (bindingResult.hasErrors())
-            return "/auth/registration";
+        if (bindingResult.hasErrors()) {
+            return Map.of("message", "Ошибка!");
+        }
 
         registrationService.register(person);
 
-        return "redirect:/auth/login";
+        String token = jwtUtil.generateToken(person.getUsername());
+        return Map.of("jwt-token",token);
+    }
+
+    public Person convertToPerson(PersonDTO personDTO) {
+        return this.modelMapper.map(personDTO,Person.class);
     }
 }
